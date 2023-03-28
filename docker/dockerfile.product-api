@@ -1,0 +1,22 @@
+FROM golang:1.20 as build
+ENV CGO_ENABLED 0
+ARG BUILD_ENV
+
+WORKDIR /build
+COPY . .
+RUN cd services/product-api && go build -ldflags "-X main.build=${BUILD_ENV}"
+
+# RELEASE
+FROM alpine:3.14
+ARG BUILD_DATE
+ARG BUILD_ENV
+WORKDIR /websvc
+COPY --from=build /build/services/product-api .
+CMD ["./product-api"]
+
+LABEL org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.title="product api service" \
+      org.opencontainers.image.authors="Veerash Ayyagari <veerash@veerashayyagari.com>" \
+      org.opencontainers.image.source="https://github.com/veerashayyagari/go-otel/services/product-api" \
+      org.opencontainers.image.revision="${BUILD_ENV}" \
+      org.opencontainers.image.vendor="Veerash Ayyagari"
