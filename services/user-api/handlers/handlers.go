@@ -7,20 +7,15 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
+	m "github.com/veerashayyagari/go-otel/services/models"
 )
 
-type User struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
-}
-
-var userStore = map[string]User{
-	"1": {"1", "Bill", "bill@gmail.com"},
-	"2": {"2", "Jim", "jim@outlook.com"},
-	"3": {"3", "Sally", "sally@yahoo.com"},
-	"4": {"4", "Mike", "mike@icloud.com"},
-	"5": {"5", "Jenni", "jenni@google.com"},
+var userStore = map[string]m.User{
+	"1": {ID: "1", Name: "Bill", Email: "bill@gmail.com"},
+	"2": {ID: "2", Name: "Jim", Email: "jim@outlook.com"},
+	"3": {ID: "3", Name: "Sally", Email: "sally@yahoo.com"},
+	"4": {ID: "4", Name: "Mike", Email: "mike@icloud.com"},
+	"5": {ID: "5", Name: "Jenni", Email: "jenni@google.com"},
 }
 
 func UserAPIRouter() *httprouter.Router {
@@ -31,7 +26,12 @@ func UserAPIRouter() *httprouter.Router {
 }
 
 func getUsersHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	respond("getUsersHandler", w, http.StatusOK, userStore)
+	var users []m.User
+	for _, v := range userStore {
+		users = append(users, v)
+	}
+
+	respond("getUsersHandler", w, http.StatusOK, users)
 }
 
 func getUserByIdHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {

@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../base/
+patches:
+- path: ./webapp-patch.yaml
+  target:
+    kind: Deployment
+images:
+- name: web-app-image
+  newName: web-app-amd64
+  newTag: "1.0"

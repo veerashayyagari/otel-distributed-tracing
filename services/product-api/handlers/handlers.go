@@ -7,22 +7,17 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
+	m "github.com/veerashayyagari/go-otel/services/models"
 )
 
-type Product struct {
-	ID    string  `json:"id"`
-	Name  string  `json:"name"`
-	Price float64 `json:"price"`
-}
-
-var productStore = map[string]Product{
-	"1000": {"1000", "Product A", 60.00},
-	"1001": {"1001", "Product B", 75.00},
-	"1002": {"1002", "Product C", 60.10},
-	"1003": {"1003", "Product D", 150.00},
-	"1004": {"1004", "Product E", 30.00},
-	"1005": {"1005", "Product F", 20.00},
-	"1006": {"1006", "Product G", 160.00},
+var productStore = map[string]m.Product{
+	"1000": {ID: "1000", Name: "Product A", Price: 60.00},
+	"1001": {ID: "1001", Name: "Product B", Price: 75.00},
+	"1002": {ID: "1002", Name: "Product C", Price: 60.10},
+	"1003": {ID: "1003", Name: "Product D", Price: 150.00},
+	"1004": {ID: "1004", Name: "Product E", Price: 30.00},
+	"1005": {ID: "1005", Name: "Product F", Price: 20.00},
+	"1006": {ID: "1006", Name: "Product G", Price: 160.00},
 }
 
 func ProductAPIRouter() *httprouter.Router {
@@ -33,7 +28,11 @@ func ProductAPIRouter() *httprouter.Router {
 }
 
 func getAllProducts(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	respond("getAllProducts", w, http.StatusOK, productStore)
+	var products []m.Product
+	for _, v := range productStore {
+		products = append(products, v)
+	}
+	respond("getAllProducts", w, http.StatusOK, products)
 }
 
 func getProductsById(w http.ResponseWriter, r *http.Request, p httprouter.Params) {

@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../base/
+patches:
+- path: ./userapi-patch.yaml
+  target:
+    kind: Deployment
+images:
+- name: user-api-image
+  newName: user-api-amd64
+  newTag: "1.0"

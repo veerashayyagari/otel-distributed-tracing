@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-api
+  namespace: userapi-ns
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: user-api
+  template:
+    metadata:
+      labels:
+        app: user-api
+    spec:
+      containers:
+      - name: user-api
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"

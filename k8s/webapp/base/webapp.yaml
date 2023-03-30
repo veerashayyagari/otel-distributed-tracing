@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: webapp-ns
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+  namespace: webapp-ns
+spec:
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      dnsPolicy: ClusterFirstWithHostNet
+      hostNetwork: true
+      terminationGracePeriodSeconds: 60
+      containers:
+      - name: web
+        image: web-app-image
+        resources: {}
+        ports:
+        - name: web-app
+          containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-app-svc
+spec:
+  selector:
+    app: web
+  ports:
+  - port: 3000
+    targetPort: web-app

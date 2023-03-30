@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sales-api
+  namespace: salesapi-ns
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: sales-api
+  template:
+    metadata:
+      labels:
+        app: sales-api
+    spec:
+      containers:
+      - name: sales-api        
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"

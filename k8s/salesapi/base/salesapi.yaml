@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: salesapi-ns
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sales-api
+  namespace: salesapi-ns
+spec:
+  selector:
+    matchLabels:
+      app: sales-api
+  template:
+    metadata:
+      labels:
+        app: sales-api
+    spec:
+      dnsPolicy: ClusterFirstWithHostNet
+      hostNetwork: true
+      terminationGracePeriodSeconds: 60
+      containers:
+      - name: sales-api
+        image: sales-api-image
+        resources: {}
+        ports:
+        - name: sales-api
+          containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sales-svc
+spec:
+  selector:
+    app: sales-api
+  ports:
+  - port: 5000
+    targetPort: sales-api

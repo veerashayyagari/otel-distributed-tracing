@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -12,11 +13,16 @@ import (
 
 var (
 	build = "local"
+	port  = "6000"
 )
 
 func main() {
 	log.Printf("starting product api for build: %s \n", build)
 	defer log.Println("shutdown complete for product api")
+
+	if p, ok := os.LookupEnv("PORT"); ok {
+		port = p
+	}
 
 	// register shutdown channel to be notified on termination
 	shutdown := make(chan os.Signal, 1)
@@ -25,7 +31,7 @@ func main() {
 	serverErrors := make(chan error, 1)
 
 	go func() {
-		serverErrors <- http.ListenAndServe(":3000", handlers.ProductAPIRouter())
+		serverErrors <- http.ListenAndServe(fmt.Sprintf(":%s", port), handlers.ProductAPIRouter())
 	}()
 
 	select {

@@ -8,28 +8,20 @@ import (
 	"time"
 
 	"github.com/julienschmidt/httprouter"
+	m "github.com/veerashayyagari/go-otel/services/models"
 )
 
-type Sale struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"user_id"`
-	ProductID string    `json:"product_id"`
-	Quantity  int       `json:"quantity"`
-	SalePrice float64   `json:"sale_price"`
-	SaleDate  time.Time `json:"sale_date"`
-}
-
-var saleStore = map[string]Sale{
-	"100": {"100", "2", "1000", 2, 120.00, time.Now().UTC().AddDate(0, -2, -1)},
-	"102": {"102", "2", "1002", 3, 180.30, time.Now().UTC().AddDate(0, -3, -2)},
-	"300": {"300", "1", "1001", 2, 150.00, time.Now().UTC().AddDate(0, -1, -2)},
-	"204": {"204", "1", "1001", 2, 150.00, time.Now().UTC().AddDate(0, -3, -3)},
-	"350": {"350", "3", "1004", 5, 150.00, time.Now().UTC().AddDate(0, -5, -10)},
-	"150": {"150", "4", "1003", 10, 1500.00, time.Now().UTC().AddDate(0, -10, -1)},
-	"160": {"160", "4", "1005", 5, 100.00, time.Now().UTC().AddDate(0, -5, -1)},
-	"250": {"250", "5", "1006", 10, 1600.00, time.Now().UTC().AddDate(0, -10, -5)},
-	"360": {"360", "4", "1000", 5, 300.00, time.Now().UTC().AddDate(0, -5, -1)},
-	"205": {"205", "3", "1000", 3, 180.00, time.Now().UTC().AddDate(0, -5, -10)},
+var saleStore = map[string]m.Sale{
+	"100": {ID: "100", UserID: "2", ProductID: "1000", Quantity: 2, SalePrice: 120.00, SaleDate: time.Now().UTC().AddDate(0, -2, -1)},
+	"102": {ID: "102", UserID: "2", ProductID: "1002", Quantity: 3, SalePrice: 180.30, SaleDate: time.Now().UTC().AddDate(0, -3, -2)},
+	"300": {ID: "300", UserID: "1", ProductID: "1001", Quantity: 2, SalePrice: 150.00, SaleDate: time.Now().UTC().AddDate(0, -1, -2)},
+	"204": {ID: "204", UserID: "1", ProductID: "1001", Quantity: 2, SalePrice: 150.00, SaleDate: time.Now().UTC().AddDate(0, -3, -3)},
+	"350": {ID: "350", UserID: "3", ProductID: "1004", Quantity: 5, SalePrice: 150.00, SaleDate: time.Now().UTC().AddDate(0, -5, -10)},
+	"150": {ID: "150", UserID: "4", ProductID: "1003", Quantity: 10, SalePrice: 1500.00, SaleDate: time.Now().UTC().AddDate(0, -10, -1)},
+	"160": {ID: "160", UserID: "4", ProductID: "1005", Quantity: 5, SalePrice: 100.00, SaleDate: time.Now().UTC().AddDate(0, -5, -1)},
+	"250": {ID: "250", UserID: "5", ProductID: "1006", Quantity: 10, SalePrice: 1600.00, SaleDate: time.Now().UTC().AddDate(0, -10, -5)},
+	"360": {ID: "360", UserID: "4", ProductID: "1000", Quantity: 5, SalePrice: 300.00, SaleDate: time.Now().UTC().AddDate(0, -5, -1)},
+	"205": {ID: "205", UserID: "3", ProductID: "1000", Quantity: 3, SalePrice: 180.00, SaleDate: time.Now().UTC().AddDate(0, -5, -10)},
 }
 
 func SalesAPIRouter() *httprouter.Router {
@@ -64,7 +56,7 @@ func getSalesByUserId(w http.ResponseWriter, r *http.Request, p httprouter.Param
 		return
 	}
 
-	usrSales := []Sale{}
+	usrSales := []m.Sale{}
 
 	for _, sale := range saleStore {
 		if sale.UserID == id {

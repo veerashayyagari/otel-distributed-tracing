@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-api
+  namespace: productapi-ns
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: product-api
+  template:
+    metadata:
+      labels:
+        app: product-api
+    spec:
+      containers:
+      - name: product-api        
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
