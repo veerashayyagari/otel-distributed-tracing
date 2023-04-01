@@ -11,7 +11,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	m "github.com/veerashayyagari/go-otel/services/models"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"github.com/veerashayyagari/go-otel/tracer"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -44,9 +44,9 @@ func New(tr trace.Tracer) *App {
 	}
 	router := httprouter.New()
 	router.NotFound = http.RedirectHandler("/users", http.StatusMovedPermanently)
-	router.GET("/users", a.renderUsersTemplate)
-	router.GET("/users/:uid", a.renderUserSalesTemplate)
-	a.Handler = otelhttp.NewHandler(router, "requests")
+	router.GET("/users", tracer.Wrap(a.renderUsersTemplate, tr))
+	router.GET("/users/:uid", tracer.Wrap(a.renderUserSalesTemplate, tr))
+	a.Handler = router
 	return a
 }
 

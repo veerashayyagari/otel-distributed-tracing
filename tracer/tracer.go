@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -24,9 +25,6 @@ type TraceConfig struct {
 	Environment    string
 	ExportURI      string
 }
-
-// RouterHandler represents the func type that httprouter handles on any given route match
-type RouterHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params)
 
 // NewTraceProvider sets up a global trace provider for the service and configures trace data to be published to exportURI
 func NewTraceProvider(cfg *TraceConfig) (otrace.Tracer, error) {
@@ -51,7 +49,7 @@ func NewTraceProvider(cfg *TraceConfig) (otrace.Tracer, error) {
 
 	tp := trace.NewTracerProvider(
 		// sample half of the traces
-		trace.WithSampler(trace.TraceIDRatioBased(0.5)),
+		trace.WithSampler(trace.TraceIDRatioBased(1)),
 		trace.WithBatcher(exp,
 			trace.WithMaxExportBatchSize(trace.DefaultMaxExportBatchSize),
 			trace.WithBatchTimeout(trace.DefaultScheduleDelay*time.Millisecond),
@@ -62,6 +60,16 @@ func NewTraceProvider(cfg *TraceConfig) (otrace.Tracer, error) {
 
 	otel.SetTracerProvider(tp)
 	return tp.Tracer(cfg.ServiceName), nil
+}
+
+func Wrap(h httprouter.Handle, tr otrace.Tracer) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		ctx, span := tr.Start(r.Context(), fmt.Sprintf("%s:%s", strings.ToUpper(r.Method), r.URL.Path))
+		startTime := time.Now().UTC()
+		defer span.SetAttributes(attribute.Int("execution.time", int(time.Now().UTC().Sub(startTime))))
+		defer span.End()
+		h(w, r.WithContext(ctx), p)
+	}
 }
 
 // newExporter configures zipkin exporter when a valid export URI is passed,
