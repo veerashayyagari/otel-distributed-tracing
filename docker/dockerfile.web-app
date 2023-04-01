@@ -1,15 +1,16 @@
 FROM golang:1.20 as build
 ENV CGO_ENABLED 0
 ARG BUILD_ENV
+ARG VERSION
 
 WORKDIR /build
 COPY . .
-RUN cd services/app && go build -ldflags "-X main.build=${BUILD_ENV}"
+RUN cd services/app && go build -ldflags "-X main.build=${BUILD_ENV} -X main.version=${VERSION}"
 
 # RELEASE
 FROM alpine:3.14
 ARG BUILD_DATE
-ARG BUILD_ENV
+ARG VERSION
 WORKDIR /websvc
 COPY --from=build /build/services/app .
 CMD ["./app"]
@@ -18,6 +19,6 @@ LABEL org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.title="web app" \
       org.opencontainers.image.authors="Veerash Ayyagari <veerash@veerashayyagari.com>" \
       org.opencontainers.image.source="https://github.com/veerashayyagari/go-otel/services/app" \
-      org.opencontainers.image.revision="${BUILD_ENV}" \
+      org.opencontainers.image.revision="${VERSION}" \
       org.opencontainers.image.vendor="Veerash Ayyagari"
       

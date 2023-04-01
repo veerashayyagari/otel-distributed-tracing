@@ -15,7 +15,8 @@ user-api:
 	docker build \
 		-f docker/dockerfile.user-api \
 		-t user-api-amd64:${VERSION} \
-		--build-arg BUILD_ENV=DOCKER_${VERSION} \
+		--build-arg BUILD_ENV=DOCKER \
+		--build-arg VERSION=${VERSION} \
 		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
 		.
 
@@ -23,7 +24,8 @@ sales-api:
 	docker build \
 		-f docker/dockerfile.sales-api \
 		-t sales-api-amd64:${VERSION} \
-		--build-arg BUILD_ENV=DOCKER_${VERSION} \
+		--build-arg BUILD_ENV=DOCKER \
+		--build-arg VERSION=${VERSION} \
 		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
 		.
 
@@ -31,7 +33,8 @@ product-api:
 	docker build \
 		-f docker/dockerfile.product-api \
 		-t product-api-amd64:${VERSION} \
-		--build-arg BUILD_ENV=DOCKER_${VERSION} \
+		--build-arg BUILD_ENV=DOCKER \
+		--build-arg VERSION=${VERSION} \
 		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
 		.
 
@@ -39,7 +42,8 @@ web-app:
 	docker build \
 		-f docker/dockerfile.web-app \
 		-t web-app-amd64:${VERSION} \
-		--build-arg BUILD_ENV=DOCKER_${VERSION} \
+		--build-arg BUILD_ENV=DOCKER \
+		--build-arg VERSION=${VERSION} \
 		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
 		.
 
@@ -75,6 +79,10 @@ kind-load-web-app:
 	cd k8s/webapp/overlays/kind && kustomize edit set image web-app-image=web-app-amd64:${VERSION}
 	kind load docker-image web-app-amd64:${VERSION} --name ${KIND_CLUSTER}
 
+kind-deploy-zipkin:
+	kustomize build k8s/zipkin/ | kubectl apply -f -
+	kubectl wait --namespace tracer-ns --timeout=120s --for=condition=Available deployment/zipkin
+
 kind-apply:
 	kustomize build k8s/productapi/overlays/kind/ | kubectl apply -f -
 	kubectl wait --namespace productapi-ns --timeout=120s --for=condition=Available deployment/product-api
@@ -87,6 +95,12 @@ kind-apply:
 
 	kustomize build k8s/webapp/overlays/kind/ | kubectl apply -f -
 	kubectl wait --namespace webapp-ns --timeout=120s --for=condition=Available deployment/web-app
+
+kind-delete-deploy:
+	kustomize build k8s/productapi/overlays/kind/ | kubectl delete -f -
+	kustomize build k8s/salesapi/overlays/kind/ | kubectl delete -f -
+	kustomize build k8s/userapi/overlays/kind/ | kubectl delete -f -
+	kustomize build k8s/webapp/overlays/kind/ | kubectl delete -f -
 
 kind-restart:
 	kubectl rollout restart deployment user-api --namespace userapi-ns

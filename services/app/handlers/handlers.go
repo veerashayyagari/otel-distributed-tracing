@@ -1,14 +1,19 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 	m "github.com/veerashayyagari/go-otel/services/models"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var templates *template.Template
@@ -23,22 +28,30 @@ type UserSalesPage struct {
 	Sales []m.Sale
 }
 
+type App struct {
+	http.Handler
+	trace.Tracer
+}
+
 func init() {
 	fs := os.DirFS("./tmpl/")
 	templates = template.Must(template.ParseFS(fs, "*.html"))
 }
 
-func AppRouter() *httprouter.Router {
+func New(tr trace.Tracer) *App {
+	a := &App{
+		Tracer: tr,
+	}
 	router := httprouter.New()
-	router.GET("/users", renderUsersTemplate)
-	router.GET("/users/:uid", renderUserSalesTemplate)
 	router.NotFound = http.RedirectHandler("/users", http.StatusMovedPermanently)
-
-	return router
+	router.GET("/users", a.renderUsersTemplate)
+	router.GET("/users/:uid", a.renderUserSalesTemplate)
+	a.Handler = otelhttp.NewHandler(router, "requests")
+	return a
 }
 
-func renderUsersTemplate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	users, err := getUsers()
+func (a *App) renderUsersTemplate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	users, err := a.getUsers(r.Context())
 	if err != nil {
 		fmt.Println("getUsers: ", err)
 		http.Error(w, "error fetching users", http.StatusInternalServerError)
@@ -56,8 +69,8 @@ func renderUsersTemplate(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	}
 }
 
-func renderUserSalesTemplate(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	sales, err := getUserSales(p.ByName("uid"))
+func (a *App) renderUserSalesTemplate(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sales, err := a.getUserSales(r.Context(), p.ByName("uid"))
 	if err != nil {
 		fmt.Println("getUserSales: ", "userId", p.ByName("uid"), err)
 		http.Error(w, "error fetching usersales", http.StatusInternalServerError)
@@ -76,8 +89,18 @@ func renderUserSalesTemplate(w http.ResponseWriter, r *http.Request, p httproute
 	}
 }
 
-func getUsers() ([]m.User, error) {
-	r, err := http.Get("http://localhost:4000/api/users")
+func (a *App) getUsers(ctx context.Context) ([]m.User, error) {
+	_, span := a.Tracer.Start(ctx, "getUsers")
+	startTime := time.Now().UTC()
+	defer span.SetAttributes(attribute.Int("execution.time", int(time.Now().UTC().Sub(startTime))))
+	defer span.End()
+
+	apiHost, ok := os.LookupEnv("USER_API_URI")
+	if !ok {
+		return nil, fmt.Errorf("USER_API_URI not found")
+	}
+
+	r, err := http.Get(fmt.Sprintf("%s/api/users", apiHost))
 	if err != nil {
 		return nil, fmt.Errorf("fetching users: %w", err)
 	}
@@ -97,8 +120,18 @@ func getUsers() ([]m.User, error) {
 	return users, nil
 }
 
-func getUserSales(uid string) ([]m.Sale, error) {
-	r, err := http.Get(fmt.Sprintf("http://localhost:5000/api/usersales/%s", uid))
+func (a *App) getUserSales(ctx context.Context, uid string) ([]m.Sale, error) {
+	_, span := a.Tracer.Start(ctx, fmt.Sprintf("getUserSales:%s", uid))
+	startTime := time.Now().UTC()
+	defer span.SetAttributes(attribute.Int("execution.time", int(time.Now().UTC().Sub(startTime))))
+	defer span.End()
+
+	apiHost, ok := os.LookupEnv("SALES_API_URI")
+	if !ok {
+		return nil, fmt.Errorf("SALES_API_URI not found")
+	}
+
+	r, err := http.Get(fmt.Sprintf("%s/api/usersales/%s", apiHost, uid))
 	if err != nil {
 		return nil, fmt.Errorf("fetching user sales: %w", err)
 	}

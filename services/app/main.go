@@ -9,16 +9,20 @@ import (
 	"syscall"
 
 	"github.com/veerashayyagari/go-otel/services/app/handlers"
+	"github.com/veerashayyagari/go-otel/tracer"
 )
 
+const name = "webapp"
+
 var (
-	build = "local"
-	port  = "3000"
+	build   = "local"
+	version = "1.0"
+	port    = "3000"
 )
 
 func main() {
-	log.Printf("starting web app for build: %s  \n", build)
-	defer log.Println("completed shutting down web app")
+	log.Printf("starting %s, version: %s, for build: %s  \n", name, version, build)
+	defer log.Println("completed shutting down ", name)
 
 	if p, ok := os.LookupEnv("PORT"); ok {
 		port = p
@@ -30,13 +34,28 @@ func main() {
 	serverErrors := make(chan error, 1)
 
 	go func() {
-		serverErrors <- http.ListenAndServe(fmt.Sprintf(":%s", port), handlers.AppRouter())
+		cfg := &tracer.TraceConfig{
+			ServiceName:    name,
+			ServiceVersion: version,
+			Environment:    build,
+			ExportURI:      os.Getenv("ZIPKIN_API_URI"),
+		}
+
+		tr, err := tracer.NewTraceProvider(cfg)
+		if err != nil {
+			log.Println("failed to setup tracer.", err)
+		}
+
+		serverErrors <- http.ListenAndServe(fmt.Sprintf(":%s", port), handlers.New(tr))
 	}()
 
 	select {
 	case err := <-serverErrors:
-		log.Printf("unhandled server error. %s \n", err)
+		if err != nil {
+			log.Fatalf("unhandled server error. %s \n", err)
+		}
+
 	case v := <-shutdown:
-		log.Printf("received shutdown signal %v. Shutting down web app.\n", v)
+		log.Printf("received shutdown signal %v. Shutting down %s.\n", v, name)
 	}
 }
