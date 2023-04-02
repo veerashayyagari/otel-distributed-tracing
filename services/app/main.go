@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/veerashayyagari/go-otel/services/app/handlers"
+	"github.com/veerashayyagari/go-otel/services/app/router"
 	"github.com/veerashayyagari/go-otel/tracer"
 )
 
@@ -46,7 +46,7 @@ func main() {
 			log.Println("failed to setup tracer.", err)
 		}
 
-		serverErrors <- http.ListenAndServe(fmt.Sprintf(":%s", port), handlers.New(tr))
+		serverErrors <- http.ListenAndServe(fmt.Sprintf(":%s", port), router.New(tr))
 	}()
 
 	select {

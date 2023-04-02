@@ -23,6 +23,9 @@ spec:
       containers:
       - name: product-api
         image: product-api-image
+        env:
+        - name: ZIPKIN_API_URI
+          value: http://zipkin-svc.tracer-ns.svc.cluster.local:9411/api/v2/spans
         resources: {}
         ports:
         - name: product-api

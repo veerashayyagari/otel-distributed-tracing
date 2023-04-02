@@ -1,13 +1,14 @@
-package handlers
+package router
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/veerashayyagari/go-otel/response"
 	m "github.com/veerashayyagari/go-otel/services/models"
+	"github.com/veerashayyagari/go-otel/tracer"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var productStore = map[string]m.Product{
@@ -20,11 +21,19 @@ var productStore = map[string]m.Product{
 	"1006": {ID: "1006", Name: "Product G", Price: 160.00},
 }
 
-func ProductAPIRouter() *httprouter.Router {
+type Router struct {
+	http.Handler
+	trace.Tracer
+}
+
+func New(tr trace.Tracer) *Router {
+	r := &Router{
+		Tracer: tr,
+	}
 	router := httprouter.New()
-	router.GET("/api/products", getAllProducts)
-	router.GET("/api/products/:id", getProductsById)
-	return router
+	router.GET("/api/products", tracer.Wrap(getAllProducts, tr))
+	router.GET("/api/products/:id", tracer.Wrap(getProductsById, tr))
+	return r
 }
 
 func getAllProducts(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -32,35 +41,22 @@ func getAllProducts(w http.ResponseWriter, r *http.Request, p httprouter.Params)
 	for _, v := range productStore {
 		products = append(products, v)
 	}
-	respond("getAllProducts", w, http.StatusOK, products)
+	response.Send("getAllProducts", w, http.StatusOK, products)
 }
 
 func getProductsById(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	id := p.ByName("id")
 	handler := "getProductsById"
 	if id == "" {
-		respond(handler, w, http.StatusBadRequest, fmt.Errorf("not a valid request, could not parse productid"))
+		response.Send(handler, w, http.StatusBadRequest, fmt.Errorf("not a valid request, could not parse productid"))
 		return
 	}
 
 	product, ok := productStore[id]
 	if !ok {
-		respond(handler, w, http.StatusNotFound, fmt.Errorf("product with id(%s) not found", id))
+		response.Send(handler, w, http.StatusNotFound, fmt.Errorf("product with id(%s) not found", id))
 		return
 	}
 
-	respond(handler, w, http.StatusOK, product)
-}
-
-func respond(handler string, w http.ResponseWriter, statusCode int, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	buf, err := json.Marshal(data)
-	if err != nil {
-		log.Printf("ERROR: %s marshaling json %s \n", handler, err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("error fetching user(s)"))
-	} else {
-		w.WriteHeader(statusCode)
-		w.Write(buf)
-	}
+	response.Send(handler, w, http.StatusOK, product)
 }

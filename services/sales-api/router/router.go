@@ -1,14 +1,15 @@
-package handlers
+package router
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/veerashayyagari/go-otel/response"
 	m "github.com/veerashayyagari/go-otel/services/models"
+	"github.com/veerashayyagari/go-otel/tracer"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var saleStore = map[string]m.Sale{
@@ -24,35 +25,44 @@ var saleStore = map[string]m.Sale{
 	"205": {ID: "205", UserID: "3", ProductID: "1000", Quantity: 3, SalePrice: 180.00, SaleDate: time.Now().UTC().AddDate(0, -5, -10)},
 }
 
-func SalesAPIRouter() *httprouter.Router {
-	router := httprouter.New()
-	router.GET("/api/sales/:id", getSalesById)
-	router.GET("/api/usersales/:uid", getSalesByUserId)
-	return router
+type Router struct {
+	http.Handler
+	trace.Tracer
 }
 
-func getSalesById(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func New(tr trace.Tracer) *Router {
+	r := &Router{
+		Tracer: tr,
+	}
+	router := httprouter.New()
+	router.GET("/api/sales/:id", tracer.Wrap(getSalesByID, tr))
+	router.GET("/api/usersales/:uid", tracer.Wrap(getSalesByUserID, tr))
+	r.Handler = router
+	return r
+}
+
+func getSalesByID(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	id := p.ByName("id")
 	handler := "getSalesById"
 	if id == "" {
-		respond(handler, w, http.StatusBadRequest, fmt.Errorf("not a valid request, could not parse saleid"))
+		response.Send(handler, w, http.StatusBadRequest, fmt.Errorf("not a valid request, could not parse saleid"))
 		return
 	}
 
 	sale, ok := saleStore[id]
 	if !ok {
-		respond(handler, w, http.StatusNotFound, fmt.Errorf("sale with id(%s) not found", id))
+		response.Send(handler, w, http.StatusNotFound, fmt.Errorf("sale with id(%s) not found", id))
 		return
 	}
 
-	respond(handler, w, http.StatusOK, sale)
+	response.Send(handler, w, http.StatusOK, sale)
 }
 
-func getSalesByUserId(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func getSalesByUserID(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	id := p.ByName("uid")
 	handler := "getSalesByUserId"
 	if id == "" {
-		respond(handler, w, http.StatusBadRequest, fmt.Errorf("not a valid request, could not parse userid"))
+		response.Send(handler, w, http.StatusBadRequest, fmt.Errorf("not a valid request, could not parse userid"))
 		return
 	}
 
@@ -64,18 +74,5 @@ func getSalesByUserId(w http.ResponseWriter, r *http.Request, p httprouter.Param
 		}
 	}
 
-	respond(handler, w, http.StatusOK, usrSales)
-}
-
-func respond(handler string, w http.ResponseWriter, statusCode int, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	buf, err := json.Marshal(data)
-	if err != nil {
-		log.Printf("ERROR: %s marshaling json %s \n", handler, err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("error fetching user(s)"))
-	} else {
-		w.WriteHeader(statusCode)
-		w.Write(buf)
-	}
+	response.Send(handler, w, http.StatusOK, usrSales)
 }

@@ -8,7 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/veerashayyagari/go-otel/services/user-api/handlers"
+	"github.com/veerashayyagari/go-otel/services/user-api/router"
+	"github.com/veerashayyagari/go-otel/tracer"
 )
 
 const name = "user-api"
@@ -34,7 +35,19 @@ func main() {
 	serverErrors := make(chan error, 1)
 
 	go func() {
-		serverErrors <- http.ListenAndServe(fmt.Sprintf(":%s", port), handlers.UserAPIRouter())
+		cfg := &tracer.TraceConfig{
+			ServiceName:    name,
+			ServiceVersion: version,
+			Environment:    build,
+			ExportURI:      os.Getenv("ZIPKIN_API_URI"),
+		}
+
+		tr, err := tracer.NewTraceProvider(cfg)
+		if err != nil {
+			log.Println("failed to setup tracer.", err)
+		}
+
+		serverErrors <- http.ListenAndServe(fmt.Sprintf(":%s", port), router.New(tr))
 	}()
 
 	select {

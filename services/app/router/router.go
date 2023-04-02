@@ -1,4 +1,4 @@
-package handlers
+package router
 
 import (
 	"context"
@@ -28,7 +28,7 @@ type UserSalesPage struct {
 	Sales []m.Sale
 }
 
-type App struct {
+type Router struct {
 	http.Handler
 	trace.Tracer
 }
@@ -38,20 +38,20 @@ func init() {
 	templates = template.Must(template.ParseFS(fs, "*.html"))
 }
 
-func New(tr trace.Tracer) *App {
-	a := &App{
+func New(tr trace.Tracer) *Router {
+	r := &Router{
 		Tracer: tr,
 	}
 	router := httprouter.New()
 	router.NotFound = http.RedirectHandler("/users", http.StatusMovedPermanently)
-	router.GET("/users", tracer.Wrap(a.renderUsersTemplate, tr))
-	router.GET("/users/:uid", tracer.Wrap(a.renderUserSalesTemplate, tr))
-	a.Handler = router
-	return a
+	router.GET("/users", tracer.Wrap(r.renderUsersTemplate, tr))
+	router.GET("/users/:uid", tracer.Wrap(r.renderUserSalesTemplate, tr))
+	r.Handler = router
+	return r
 }
 
-func (a *App) renderUsersTemplate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	users, err := a.getUsers(r.Context())
+func (ro *Router) renderUsersTemplate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	users, err := ro.getUsers(r.Context())
 	if err != nil {
 		fmt.Println("getUsers: ", err)
 		http.Error(w, "error fetching users", http.StatusInternalServerError)
@@ -69,8 +69,8 @@ func (a *App) renderUsersTemplate(w http.ResponseWriter, r *http.Request, _ http
 	}
 }
 
-func (a *App) renderUserSalesTemplate(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	sales, err := a.getUserSales(r.Context(), p.ByName("uid"))
+func (ro *Router) renderUserSalesTemplate(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sales, err := ro.getUserSales(r.Context(), p.ByName("uid"))
 	if err != nil {
 		fmt.Println("getUserSales: ", "userId", p.ByName("uid"), err)
 		http.Error(w, "error fetching usersales", http.StatusInternalServerError)
@@ -89,8 +89,8 @@ func (a *App) renderUserSalesTemplate(w http.ResponseWriter, r *http.Request, p 
 	}
 }
 
-func (a *App) getUsers(ctx context.Context) ([]m.User, error) {
-	_, span := a.Tracer.Start(ctx, "getUsers")
+func (ro *Router) getUsers(ctx context.Context) ([]m.User, error) {
+	_, span := ro.Tracer.Start(ctx, "getUsers")
 	startTime := time.Now().UTC()
 	defer span.SetAttributes(attribute.Int("execution.time", int(time.Now().UTC().Sub(startTime))))
 	defer span.End()
@@ -120,8 +120,8 @@ func (a *App) getUsers(ctx context.Context) ([]m.User, error) {
 	return users, nil
 }
 
-func (a *App) getUserSales(ctx context.Context, uid string) ([]m.Sale, error) {
-	_, span := a.Tracer.Start(ctx, fmt.Sprintf("getUserSales:%s", uid))
+func (ro *Router) getUserSales(ctx context.Context, uid string) ([]m.Sale, error) {
+	_, span := ro.Tracer.Start(ctx, fmt.Sprintf("getUserSales:%s", uid))
 	startTime := time.Now().UTC()
 	defer span.SetAttributes(attribute.Int("execution.time", int(time.Now().UTC().Sub(startTime))))
 	defer span.End()
