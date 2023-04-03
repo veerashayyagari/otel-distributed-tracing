@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/veerashayyagari/go-otel/request"
 	m "github.com/veerashayyagari/go-otel/services/models"
 	"github.com/veerashayyagari/go-otel/tracer"
 	"go.opentelemetry.io/otel/attribute"
@@ -18,6 +20,11 @@ import (
 
 var templates *template.Template
 
+type SaleDetails struct {
+	m.Sale
+	ProductName string
+}
+
 type UsersPage struct {
 	Title string
 	Users []m.User
@@ -25,7 +32,7 @@ type UsersPage struct {
 
 type UserSalesPage struct {
 	Title string
-	Sales []m.Sale
+	Sales []SaleDetails
 }
 
 type Router struct {
@@ -43,9 +50,9 @@ func New(tr trace.Tracer) *Router {
 		Tracer: tr,
 	}
 	router := httprouter.New()
-	router.NotFound = http.RedirectHandler("/users", http.StatusMovedPermanently)
 	router.GET("/users", tracer.Wrap(r.renderUsersTemplate, tr))
 	router.GET("/users/:uid", tracer.Wrap(r.renderUserSalesTemplate, tr))
+	router.NotFound = http.RedirectHandler("/users", http.StatusMovedPermanently)
 	r.Handler = router
 	return r
 }
@@ -53,7 +60,7 @@ func New(tr trace.Tracer) *Router {
 func (ro *Router) renderUsersTemplate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	users, err := ro.getUsers(r.Context())
 	if err != nil {
-		fmt.Println("getUsers: ", err)
+		log.Println("getUsers: ", err)
 		http.Error(w, "error fetching users", http.StatusInternalServerError)
 		return
 	}
@@ -64,7 +71,7 @@ func (ro *Router) renderUsersTemplate(w http.ResponseWriter, r *http.Request, _ 
 	}
 	err = templates.ExecuteTemplate(w, "users.html", data)
 	if err != nil {
-		fmt.Println("executing users.html template with data. ", data, "error", err)
+		log.Println("executing users.html template with data. ", data, "error", err)
 		http.Error(w, "error rendering", http.StatusInternalServerError)
 	}
 }
@@ -72,19 +79,30 @@ func (ro *Router) renderUsersTemplate(w http.ResponseWriter, r *http.Request, _ 
 func (ro *Router) renderUserSalesTemplate(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	sales, err := ro.getUserSales(r.Context(), p.ByName("uid"))
 	if err != nil {
-		fmt.Println("getUserSales: ", "userId", p.ByName("uid"), err)
+		log.Println("getUserSales: ", "userId", p.ByName("uid"), err)
 		http.Error(w, "error fetching usersales", http.StatusInternalServerError)
 		return
 	}
 
+	salesDetails := make([]SaleDetails, 0, len(sales))
+
+	for _, sale := range sales {
+		if p, err := ro.getProductDetails(r.Context(), sale.ProductID); err != nil {
+			log.Println("fetching product details", " product: ", sale.ProductID, " error: ", err)
+			salesDetails = append(salesDetails, SaleDetails{Sale: sale, ProductName: "Error Fetching Product Name"})
+		} else {
+			salesDetails = append(salesDetails, SaleDetails{Sale: sale, ProductName: p.Name})
+		}
+	}
+
 	data := UserSalesPage{
 		Title: "List User Sales",
-		Sales: sales,
+		Sales: salesDetails,
 	}
 
 	err = templates.ExecuteTemplate(w, "usersales.html", data)
 	if err != nil {
-		fmt.Println("executing usersales.html template with data. ", data, "error", err)
+		log.Println("executing usersales.html template with data. ", data, "error", err)
 		http.Error(w, "error rendering", http.StatusInternalServerError)
 	}
 }
@@ -100,9 +118,9 @@ func (ro *Router) getUsers(ctx context.Context) ([]m.User, error) {
 		return nil, fmt.Errorf("USER_API_URI not found")
 	}
 
-	r, err := http.Get(fmt.Sprintf("%s/api/users", apiHost))
+	r, err := request.Send(ctx, http.MethodGet, fmt.Sprintf("%s/api/users", apiHost), nil)
 	if err != nil {
-		return nil, fmt.Errorf("fetching users: %w", err)
+		return nil, err
 	}
 
 	if r.StatusCode != http.StatusOK {
@@ -131,13 +149,9 @@ func (ro *Router) getUserSales(ctx context.Context, uid string) ([]m.Sale, error
 		return nil, fmt.Errorf("SALES_API_URI not found")
 	}
 
-	r, err := http.Get(fmt.Sprintf("%s/api/usersales/%s", apiHost, uid))
+	r, err := request.Send(ctx, http.MethodGet, fmt.Sprintf("%s/api/usersales/%s", apiHost, uid), nil)
 	if err != nil {
-		return nil, fmt.Errorf("fetching user sales: %w", err)
-	}
-
-	if r.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("received status code: %d", r.StatusCode)
+		return nil, err
 	}
 
 	var sales []m.Sale
@@ -149,4 +163,31 @@ func (ro *Router) getUserSales(ctx context.Context, uid string) ([]m.Sale, error
 	}
 
 	return sales, nil
+}
+
+func (ro *Router) getProductDetails(ctx context.Context, id string) (m.Product, error) {
+	_, span := ro.Tracer.Start(ctx, fmt.Sprintf("getProductDetails:%s", id))
+	startTime := time.Now().UTC()
+	defer span.SetAttributes(attribute.Int("execution.time", int(time.Now().UTC().Sub(startTime))))
+	defer span.End()
+
+	apiHost, ok := os.LookupEnv("PRODUCT_API_URI")
+	if !ok {
+		return m.Product{}, fmt.Errorf("PRODUCT_API_URI not found")
+	}
+
+	r, err := request.Send(ctx, http.MethodGet, fmt.Sprintf("%s/api/products/%s", apiHost, id), nil)
+	if err != nil {
+		return m.Product{}, err
+	}
+
+	var product m.Product
+	dec := json.NewDecoder(r.Body)
+	err = dec.Decode(&product)
+
+	if err != nil {
+		return m.Product{}, fmt.Errorf("decoding response body: %w", err)
+	}
+
+	return product, nil
 }

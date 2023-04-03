@@ -8,6 +8,7 @@ import (
 	"github.com/veerashayyagari/go-otel/response"
 	m "github.com/veerashayyagari/go-otel/services/models"
 	"github.com/veerashayyagari/go-otel/tracer"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -31,7 +32,7 @@ func New(tr trace.Tracer) *Router {
 	router := httprouter.New()
 	router.GET("/api/users", tracer.Wrap(getUsersHandler, tr))
 	router.GET("/api/users/:id", tracer.Wrap(getUserByIDHandler, tr))
-	r.Handler = router
+	r.Handler = otelhttp.NewHandler(router, "users-api")
 	return r
 }
 

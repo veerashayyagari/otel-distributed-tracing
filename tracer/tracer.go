@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/exporters/zipkin"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
@@ -58,7 +59,9 @@ func NewTraceProvider(cfg *TraceConfig) (otrace.Tracer, error) {
 		trace.WithResource(r),
 	)
 
+	propagator := propagation.NewCompositeTextMapPropagator(propagation.Baggage{}, propagation.TraceContext{})
 	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagator)
 	return tp.Tracer(cfg.ServiceName), nil
 }
 
