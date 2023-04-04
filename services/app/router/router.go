@@ -51,7 +51,7 @@ func New(tr trace.Tracer) *Router {
 	}
 	router := httprouter.New()
 	router.GET("/users", tracer.Wrap(r.renderUsersTemplate, tr))
-	router.GET("/users/:uid", tracer.Wrap(r.renderUserSalesTemplate, tr))
+	router.GET("/usersales/:uid", tracer.Wrap(r.renderUserSalesTemplate, tr))
 	router.NotFound = http.RedirectHandler("/users", http.StatusMovedPermanently)
 	r.Handler = router
 	return r

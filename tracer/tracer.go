@@ -29,6 +29,7 @@ type TraceConfig struct {
 
 // NewTraceProvider sets up a global trace provider for the service and configures trace data to be published to exportURI
 func NewTraceProvider(cfg *TraceConfig) (otrace.Tracer, error) {
+	// create a new resource that adds the servicename, version and env info
 	r, err := resource.Merge(
 		resource.Default(),
 		resource.NewWithAttributes(
@@ -49,8 +50,9 @@ func NewTraceProvider(cfg *TraceConfig) (otrace.Tracer, error) {
 	}
 
 	tp := trace.NewTracerProvider(
-		// sample half of the traces
-		trace.WithSampler(trace.TraceIDRatioBased(1)),
+		// in prod, sample only small percent of traces
+		// trace.WithSampler(trace.TraceIDRatioBased(0.05)),
+		trace.WithSampler(trace.AlwaysSample()),
 		trace.WithBatcher(exp,
 			trace.WithMaxExportBatchSize(trace.DefaultMaxExportBatchSize),
 			trace.WithBatchTimeout(trace.DefaultScheduleDelay*time.Millisecond),
@@ -81,7 +83,7 @@ func newExporter(exportURI string) (trace.SpanExporter, error) {
 	// if the supplied export uri is invalid, write to stdouttrace
 	if _, err := url.Parse(exportURI); err != nil {
 		if f, e := os.Create("traces.txt"); e != nil {
-
+			return nil, fmt.Errorf("create traces.txt file: %w", e)
 		} else {
 			return stdouttrace.New(
 				// use traces.txt for writing out traces
